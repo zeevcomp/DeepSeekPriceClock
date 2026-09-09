@@ -15,7 +15,7 @@ DeepSeek bills by the hour: during **peak hours** (full price) and **off-peak ho
 ## Features
 
 - 🕐 **Live local clock** — auto-detects the machine's time zone (works anywhere in the world) with Hebrew/English date
-- 🕰️ **Analog clock option** — a polished, pre-rendered clock face with silky-smooth hands (≈30 fps sweep), plus silky color transitions when prices flip between peak and off-peak
+- 🕰️ **Analog clock (default)** — a polished, pre-rendered clock face with silky-smooth hands (≈30 fps sweep); its **frame glows green when prices are off-peak and amber at peak**, morphing smoothly on every flip
 - 💰 **Current DeepSeek prices** per 1M tokens (USD) for all three models — `deepseek-v4-flash`, `deepseek-v4-pro`, `deepseek-v4-flash-vision-exp` (input cache-hit, input cache-miss, output)
 - 🔄 **Live countdown** to the next price change, plus the next 4 changes with dates & times in your local time
 - 🌐 **Automatic price updates** — the app fetches the official [DeepSeek pricing page](https://api-docs.deepseek.com/quick_start/pricing) on startup, every 30 minutes, and on demand. It validates the data before applying it and falls back to a built-in snapshot (with a clear status message) if the site is unavailable.
@@ -34,7 +34,7 @@ Grab the latest build: [`dist/DeepSeekPriceClock.exe`](dist/DeepSeekPriceClock.e
 1. Double-click `DeepSeekPriceClock.exe` — that's it.
 2. Green card = **off-peak** (50% off). Amber card = **peak** (full price).
 3. Use the **Update now** button or wait — prices refresh automatically every 30 minutes.
-4. Click **English / עברית** to switch the interface language, or **Analog / Digital** to change the clock style.
+4. The **analog clock is the default** — its frame color shows the current price state (green = off-peak, amber = peak). Click **English / עברית** to switch language or **Digital** to use the big digital clock.
 5. The time zone is detected automatically from your system — no setup needed.
 6. "Always on top" keeps the clock visible above other windows.
 

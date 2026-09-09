@@ -372,7 +372,7 @@ def _pref_path():
 
 
 def load_prefs():
-    prefs = {"lang": detect_lang(), "mode": "digital"}
+    prefs = {"lang": detect_lang(), "mode": "analog"}  # ברירת מחדל: שעון אנלוגי
     try:
         with open(_pref_path(), encoding="utf-8") as f:
             data = json.load(f)
@@ -648,6 +648,8 @@ class App:
             for w in (self.card, self.st_title, self.st_sub, self.st_next):
                 w.configure(bg=pal["card_bg"])
             self.card.configure(highlightbackground=pal["hl"])
+            if getattr(self, "_ring_item", None):
+                self.clock_cv.itemconfigure(self._ring_item, outline=pal["hl"])
             self.st_title.configure(fg=pal["tfg"])
             for lab in self.cells.values():
                 lab.configure(fg=pal["cbg"])
@@ -713,6 +715,8 @@ class App:
             cv.create_image(90, 90, image=self.face_img)
         except Exception:
             self.face_img = None
+        # מסגרת צבעונית לפי מצב המחיר - מצוירת מעל הטבעת הכחולה החקוקה בתמונה
+        self._ring_item = cv.create_oval(14, 14, 166, 166, outline=GREEN, width=15)
         self._hands = {
             "h": cv.create_line(90, 90, 90, 57, width=7, fill="#eef2ff",
                                 capstyle="round"),
@@ -776,6 +780,8 @@ class App:
         for w in (self.card, self.st_title, self.st_sub, self.st_next):
             w.configure(bg=bg)
         self.card.configure(highlightbackground=hl)
+        if getattr(self, "_ring_item", None):
+            self.clock_cv.itemconfigure(self._ring_item, outline=hl)
         self.st_title.configure(fg=tf)
         for lab in self.cells.values():
             lab.configure(fg=cf)
