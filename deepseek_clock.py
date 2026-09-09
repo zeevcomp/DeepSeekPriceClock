@@ -444,7 +444,8 @@ class App:
     def _build(self):
         for w in self.root.winfo_children():
             w.destroy()
-        self._cache = {}   # התוויות נבנו מחדש - לאפס את מטמון הטקסטים
+        self._cache = {}      # התוויות נבנו מחדש - לאפס את מטמון הטקסטים
+        self._celltext = {}   # וגם מטמון תאי המחיר (אחרת הם נשארים ריקים!)
         self.root.title(self.S["title"])
         S = self.S
         r = self.root
@@ -683,7 +684,7 @@ class App:
             dsc.configure(text=S["ev_rise"] if rising else S["ev_fall"],
                           fg=AMBER if rising else GREEN)
 
-        for row_i, (api, data) in enumerate(MODEL_ROWS, start=2):
+        for row_i, (api, data) in enumerate(list(PRICES.items()), start=2):
             cur = data["peak"] if peak else data["off"]
             for c, v in enumerate(cur, start=1):
                 key = (row_i, c)
