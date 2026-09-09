@@ -351,28 +351,6 @@ def _lerp_hex(c1, c2, t):
     return "#" + "".join(f"{int(x + (y - x) * t):02x}" for x, y in zip(a, b))
 
 
-def peak_local_segments(offset_min, utc_weekday):
-    """שעות השיא (חלונות UTC) בשעון המקומי, כקטעים על לוח 12 שעות.
-    מחזיר רשימת (start, end) בקנה מידה של שעון (1-12). ריק בסופי שבוע."""
-    if utc_weekday not in PEAK_WEEKDAYS:
-        return []
-    segs = []
-    for s, e in PEAK_WINDOWS:
-        a = (s * 60 + offset_min) / 60.0
-        b = (e * 60 + offset_min) / 60.0
-        if b <= a:
-            b += 24
-        cur = a
-        while cur < b - 1e-6:
-            end = min(b, (cur // 12 + 1) * 12)
-            p1 = cur % 12 or 12
-            p2 = end % 12 or 12
-            if p2 > p1 + 1e-6:
-                segs.append((p1, p2))
-            elif p2 < p1:
-                segs.append((p1, p2 + 12))  # קטע שחוצה את ה-12 (למשל 12->13)
-            cur = end
-    return segs
 
 
 def detect_lang():
@@ -719,9 +697,6 @@ class App:
                     self._celltext[key] = txt
                     self.cells[key].configure(text=txt)
 
-        if getattr(self, "_ring_items", None):
-            self._update_markings(now_utc, now_loc)
-
         windows_txt = " & ".join(f"{s:02d}:00-{e:02d}:00" for s, e in PEAK_WINDOWS)
         if self.lang == "he":
             windows_txt = " ו-".join(f"{s:02d}:00–{e:02d}:00" for s, e in PEAK_WINDOWS)
@@ -754,8 +729,6 @@ class App:
         ]
         cv.create_oval(90 - 78.6, 90 - 78.6, 90 + 78.6, 90 + 78.6,
                        outline="#2c3a5e", width=1)
-        self._arc_items = []
-        self._mark_key = None
         self._hands = {
             "h": cv.create_line(90, 90, 90, 57, width=7, fill="#eef2ff",
                                 capstyle="round"),
@@ -781,32 +754,6 @@ class App:
             x0 = 90 - tail * ca
             y0 = 90 - tail * sa
             cv.coords(self._hands[key], x0, y0, 90 + length * ca, 90 + length * sa)
-
-    def _update_markings(self, now_utc, now_loc):
-        """קשתות ענבר על שעות השיא, לפי שעון מקומי (חוזרות רק כשהמצב משתנה)."""
-        cv = self.clock_cv
-        off_min = int((now_loc.utcoffset() or dt.timedelta(0)).total_seconds() // 60)
-        key = (now_utc.date(), now_utc.weekday(), off_min)
-        if key != self._mark_key:
-            self._mark_key = key
-            for it in self._arc_items:
-                cv.delete(it)
-            self._arc_items = []
-            for p1, p2 in peak_local_segments(off_min, now_utc.weekday()):
-                st = p1 * 30 - 90
-                ext = -(p2 - p1) * 30
-                self._arc_items.append(
-                    cv.create_arc(15.5, 15.5, 164.5, 164.5, start=st,
-                                  extent=ext, style="arc", outline=AMBER,
-                                  width=5))
-                for p in (p1, p2):
-                    a = math.radians(p * 30 - 90)
-                    self._arc_items.append(
-                        cv.create_oval(90 + 74.5 * math.cos(a) - 2.2,
-                                       90 + 74.5 * math.sin(a) - 2.2,
-                                       90 + 74.5 * math.cos(a) + 2.2,
-                                       90 + 74.5 * math.sin(a) + 2.2,
-                                       fill=AMBER, outline=""))
 
     def _ensure_anim(self, on):
         if on and not self._anim_running:

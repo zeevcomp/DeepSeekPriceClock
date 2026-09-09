@@ -1,12 +1,12 @@
-**v1.6.1 — a thin, pretty frame that shows the current price state at a glance.**
+**v1.6.2 — clean dial, thin price-colored frame only.**
 
-### What's new
-- 🖼️ **Thin, elegant frame** — three delicate hairlines framing the clock, with a **slender colored ring** between them
-- 🎨 **The frame color follows the price right now**: green while prices are off-peak, **amber during peak hours** — morphing smoothly (ease-out) on every flip, in sync with the status card and price table
-- ⏱️ The **amber arcs on the dial** (peak windows in your local time) are kept as a bonus map of the expensive hours
+### What changed
+- Removed the amber peak-hour arcs from the dial entirely
+- The clock now shows **only the thin elegant frame** — green while prices are off-peak, amber during peak hours, morphing smoothly with every state flip
+- Nothing else on the dial changes color; the pre-rendered face stays clean
 
 ### Still included
-- Analog clock by default; silky ~30 fps hands; pre-rendered face
+- Analog clock by default; silky ~30 fps hands
 - Live local time zone, Hebrew + English UI
 - Current prices per 1M tokens (USD) for `deepseek-v4-flash`, `deepseek-v4-pro`, `deepseek-v4-flash-vision-exp`
 - Automatic price updates from the official DeepSeek pricing page (every 30 min + on demand)
@@ -16,6 +16,6 @@
 **DeepSeekPriceClock.exe** (~11 MB). SmartScreen warning? → **More info → Run anyway**.
 
 ### SHA-256
-`08ae623693ab8639b801baa803a00b34107c8358f125d915779061ab3925d496`
+`05e7593a771c47612ed07aa41b68153678b41e589986f82880639e7159b54d28`
 
-> Not affiliated with DeepSeek. Prices and peak hours fetched from DeepSeek's official docs.
+> Not affiliated with DeepSeek. Prices and peak hours fetched from DeepSeek official docs.
