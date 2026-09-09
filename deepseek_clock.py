@@ -269,6 +269,7 @@ import tkinter as tk
 import os
 import json
 import ctypes
+import math
 
 BG = "#0f1115"
 CARD_OFF = "#0e3322"
@@ -287,13 +288,13 @@ MONTHS_EN = ["January", "February", "March", "April", "May", "June",
              "July", "August", "September", "October", "November", "December"]
 
 S_EN = {
-    "title": "DeepSeek Price Clock — token prices by the hour (Israel time)",
+    "title": "DeepSeek Price Clock — token prices by the hour (your local time)",
     "today_at": "today at {t}", "day_at": "{wd} {t}",
     "state_off_t": "OFF-PEAK — 50% off", "state_off_s": "Low price is active now",
     "state_on_t": "PEAK — full price", "state_on_s": "Full price is active now (2x)",
     "next_drop": "Price drops to half in {delta}  ( {when} )",
     "next_rise": "Price rises to full in {delta}  ( {when} )",
-    "ev_head": "Upcoming changes — Israel time:",
+    "ev_head": "Upcoming changes — your local time:",
     "ev_rise": "Price up — full (2x)", "ev_fall": "Price down — off-peak (50%)",
     "tab_caption": "Current price per 1M tokens (USD):",
     "h_hit": "Input\n(cache hit)", "h_miss": "Input\n(cache miss)", "h_out": "Output",
@@ -307,16 +308,18 @@ S_EN = {
     "upd_fail_err": "Update error: {err}",
     "note": "Price per 1M tokens, USD. Peak hours (UTC): {w}, weekdays only (weekends = off-peak all day). Models: DeepSeek-V4-Flash-0731 / V4-Pro-0813. Source: api-docs.deepseek.com",
     "topmost": "Always on top", "btn_en": "English",
+    "btn_dig": "Digital", "btn_ana": "Analog",
+    "zone": "Local time zone: {z} ({o})",
 }
 
 S_HE = {
-    "title": "DeepSeek Price Clock — שעון מחירי טוקנים לפי שעון ישראל",
+    "title": "DeepSeek Price Clock — שעון מחירי טוקנים (זמן מקומי)",
     "today_at": "היום ב-{t}", "day_at": "יום {wd} ב-{t}",
     "state_off_t": "מחיר שפל — מוזל ב-50%", "state_off_s": "המחיר הנמוך פעיל עכשיו",
     "state_on_t": "מחיר שיא — מחיר מלא", "state_on_s": "המחיר הגבוה פעיל עכשיו (פי 2)",
     "next_drop": "המחיר יירד לחצי בעוד {delta}  ( {when} )",
     "next_rise": "המחיר יעלה למחיר מלא בעוד {delta}  ( {when} )",
-    "ev_head": "השינויים הקרובים — שעון ישראל:",
+    "ev_head": "השינויים הקרובים — זמן מקומי:",
     "ev_rise": "עלייה — מחיר מלא (פי 2)", "ev_fall": "ירידה — מחיר שפל (50%)",
     "tab_caption": "מחיר פעיל ל-1M טוקנים (USD):",
     "h_hit": "קלט\n(מטמון)", "h_miss": "קלט\n(רגיל)", "h_out": "פלט",
@@ -330,6 +333,8 @@ S_HE = {
     "upd_fail_err": "שגיאת עדכון: {err}",
     "note": "מחיר ל-1M טוקנים, USD. שעות שיא (UTC): {w}, ימי חול בלבד (סוף שבוע = שפל כל היום). דגמים: DeepSeek-V4-Flash-0731 / V4-Pro-0813. מקור: api-docs.deepseek.com",
     "topmost": "חלון תמיד מעל", "btn_en": "English",
+    "btn_dig": "שעון דיגיטלי", "btn_ana": "שעון אנלוגי",
+    "zone": "אזור זמן מקומי: {z} ({o})",
 }
 
 STRINGS = {"en": S_EN, "he": S_HE}
@@ -353,24 +358,27 @@ def _pref_path():
         os.makedirs(d, exist_ok=True)
     except Exception:
         pass
-    return os.path.join(d, "lang.json")
+    return os.path.join(d, "prefs.json")
 
 
-def load_lang():
+def load_prefs():
+    prefs = {"lang": detect_lang(), "mode": "digital"}
     try:
         with open(_pref_path(), encoding="utf-8") as f:
-            v = json.load(f).get("lang")
-        if v in STRINGS:
-            return v
+            data = json.load(f)
+        if data.get("lang") in STRINGS:
+            prefs["lang"] = data["lang"]
+        if data.get("mode") in ("digital", "analog"):
+            prefs["mode"] = data["mode"]
     except Exception:
         pass
-    return detect_lang()
+    return prefs
 
 
-def save_lang(lang):
+def save_prefs(prefs):
     try:
         with open(_pref_path(), "w", encoding="utf-8") as f:
-            json.dump({"lang": lang}, f)
+            json.dump(prefs, f)
     except Exception:
         pass
 
@@ -381,7 +389,9 @@ class App:
         self.q = queue.Queue()
         self.fetching = False
         self.top_var = tk.BooleanVar(value=False)
-        self.lang = load_lang()
+        prefs = load_prefs()
+        self.lang = prefs["lang"]
+        self.mode = prefs["mode"]
         self.S = STRINGS[self.lang]
         self._cache = {}
         self.status = (self.S["upd_init"].format(date=SNAPSHOT_DATE), MUT)
@@ -393,8 +403,14 @@ class App:
     # ------------------------------------------------------------------
     def _toggle_lang(self):
         self.lang = "he" if self.lang == "en" else "en"
-        save_lang(self.lang)
+        save_prefs({"lang": self.lang, "mode": self.mode})
         self.S = STRINGS[self.lang]
+        self._build()
+        self._refresh()
+
+    def _toggle_mode(self):
+        self.mode = "analog" if self.mode == "digital" else "digital"
+        save_prefs({"lang": self.lang, "mode": self.mode})
         self._build()
         self._refresh()
 
@@ -412,17 +428,25 @@ class App:
     def _build(self):
         for w in self.root.winfo_children():
             w.destroy()
+        self._cache = {}   # התוויות נבנו מחדש - לאפס את מטמון הטקסטים
         self.root.title(self.S["title"])
         S = self.S
         r = self.root
 
-        # שעון
+        # שעון: דיגיטלי גדול או אנלוגי (לפי ההעדפה)
         f_head = tk.Frame(r, bg=BG)
-        f_head.pack(fill="x", padx=18, pady=(14, 2))
+        f_head.pack(fill="x", padx=18, pady=(10, 2))
         self.time_lbl = tk.Label(f_head, font=("Segoe UI", 40, "bold"), fg=WHITE, bg=BG)
-        self.time_lbl.pack()
+        self.clock_cv = tk.Canvas(f_head, width=180, height=180, bg=BG,
+                                  highlightthickness=0)
+        if self.mode == "analog":
+            self.clock_cv.pack()
+        else:
+            self.time_lbl.pack()
         self.date_lbl = tk.Label(f_head, font=("Segoe UI", 12), fg=MUT, bg=BG)
-        self.date_lbl.pack(pady=(0, 4))
+        self.date_lbl.pack(pady=(4, 0))
+        self.zone_lbl = tk.Label(f_head, font=("Segoe UI", 9), fg=ACCENT, bg=BG)
+        self.zone_lbl.pack()
 
         # כרטיס מצב מחיר
         self.card = tk.Frame(r, bg=CARD_OFF, highlightthickness=1, highlightbackground=BORDER)
@@ -483,6 +507,13 @@ class App:
                                  font=("Segoe UI", 9, "bold"), cursor="hand2",
                                  bd=0, padx=10, pady=3)
         self.btn_upd.pack(side="right")
+        mode_lbl = S["btn_dig"] if self.mode == "analog" else S["btn_ana"]
+        self.btn_mode = tk.Button(f_upd, text=mode_lbl, command=self._toggle_mode,
+                                  bg="#1c2330", fg=WHITE, activebackground="#26304a",
+                                  activeforeground=WHITE, relief="flat",
+                                  font=("Segoe UI", 9, "bold"), cursor="hand2",
+                                  bd=0, padx=10, pady=3)
+        self.btn_mode.pack(side="right", padx=(0, 6))
         self.btn_lang = tk.Button(f_upd, text="עברית" if self.lang == "en" else "English",
                                   command=self._toggle_lang, bg="#1c2330", fg=GREEN,
                                   activebackground="#26304a", activeforeground=GREEN,
@@ -543,7 +574,7 @@ class App:
             return
         self.fetching = False
         self.btn_upd.configure(state="normal", text=self.S["upd_btn"])
-        t = dt.datetime.now(JER).strftime("%H:%M:%S")
+        t = dt.datetime.now().strftime("%H:%M:%S")
         if kind[0] == "ok":
             _, found, windows = kind
             changed, win_changed = apply_prices(found, windows)
@@ -566,18 +597,28 @@ class App:
     # ------------------------------------------------------------------
     def _refresh(self):
         now_utc = dt.datetime.now(UTC)
-        now_jer = now_utc.astimezone(JER)
+        now_loc = now_utc.astimezone()
         peak = is_peak(now_utc)
         S = self.S
 
-        self._set("t", self.time_lbl, now_jer.strftime("%H:%M:%S"))
-        if self.lang == "he":
-            date_txt = (f"יום {WDAY_HE[now_jer.weekday()]}, "
-                        f"{now_jer.day} ב{MONTHS_HE[now_jer.month - 1]} {now_jer.year}")
+        if self.mode == "digital":
+            self._set("t", self.time_lbl, now_loc.strftime("%H:%M:%S"))
         else:
-            date_txt = (f"{WEEKDAY_EN[now_jer.weekday()]}, "
-                        f"{MONTHS_EN[now_jer.month - 1]} {now_jer.day}, {now_jer.year}")
+            self._draw_analog(now_loc)
+        if self.lang == "he":
+            date_txt = (f"יום {WDAY_HE[now_loc.weekday()]}, "
+                        f"{now_loc.day} ב{MONTHS_HE[now_loc.month - 1]} {now_loc.year}")
+        else:
+            date_txt = (f"{WEEKDAY_EN[now_loc.weekday()]}, "
+                        f"{MONTHS_EN[now_loc.month - 1]} {now_loc.day}, {now_loc.year}")
         self._set("d", self.date_lbl, date_txt)
+        off = now_loc.utcoffset() or dt.timedelta(0)
+        mins = int(off.total_seconds() // 60)
+        sign = "+" if mins >= 0 else "-"
+        mins = abs(mins)
+        zname = now_loc.tzname() or "UTC"
+        self._set("z", self.zone_lbl,
+                  S["zone"].format(z=zname, o=f"UTC{sign}{mins // 60:02d}:{mins % 60:02d}"))
 
         bg = CARD_ON if peak else CARD_OFF
         fg = AMBER if peak else GREEN
@@ -590,9 +631,9 @@ class App:
         self._set("s_s", self.st_sub, sub, fg=MUT, bg=bg)
 
         nxt = next_change(now_utc)
-        nxt_jer = nxt.astimezone(JER)
+        nxt_jer = nxt.astimezone()
         delta = fmt_delta((nxt - now_utc).total_seconds())
-        if nxt_jer.date() == now_jer.date():
+        if nxt_jer.date() == now_loc.date():
             when = S["today_at"].format(t=nxt_jer.strftime("%H:%M"))
         elif self.lang == "he":
             when = S["day_at"].format(wd=WDAY_HE[nxt_jer.weekday()],
@@ -606,8 +647,8 @@ class App:
         starts = {w0 for w0, _ in PEAK_WINDOWS}
         for i, (dsc, tme) in enumerate(self.ev_rows):
             b = boundaries_after(now_utc, 4)[i]
-            bj = b.astimezone(JER)
-            if bj.date() == now_jer.date():
+            bj = b.astimezone()
+            if bj.date() == now_loc.date():
                 pref = ""
             elif self.lang == "he":
                 pref = f"יום {WDAY_HE[bj.weekday()]} "
@@ -629,6 +670,39 @@ class App:
             windows_txt = " ו-".join(f"{s:02d}:00–{e:02d}:00" for s, e in PEAK_WINDOWS)
         self._set("note", self.note_lbl, S["note"].format(w=windows_txt))
         self._set("upd", self.upd_lbl, self.status[0], fg=self.status[1])
+
+    def _draw_analog(self, now):
+        """ציור שעון אנלוגי על הקנבס לפי השעה המקומית."""
+        cv = self.clock_cv
+        cv.delete("all")
+        cx = cy = 90
+        R = 84
+        cv.create_oval(cx - R, cy - R, cx + R, cy + R,
+                       outline="#2c3857", width=3, fill="#121a2c")
+
+        def rad(deg):
+            return math.radians(deg - 90)
+
+        for i in range(12):
+            a = rad(i * 30)
+            major = i % 3 == 0
+            r1 = R - (12 if major else 7)
+            cv.create_line(cx + r1 * math.cos(a), cy + r1 * math.sin(a),
+                           cx + (R - 3) * math.cos(a), cy + (R - 3) * math.sin(a),
+                           width=4 if major else 2,
+                           fill="#e8edff" if major else "#46537a", capstyle="round")
+
+        def hand(deg, length, width, color):
+            a = rad(deg)
+            cv.create_line(cx, cy,
+                           cx + length * math.cos(a), cy + length * math.sin(a),
+                           width=width, fill=color, capstyle="round")
+
+        sec = now.second + now.microsecond / 1e6
+        hand(sec * 6, 68, 2, AMBER)
+        hand(now.minute * 6 + now.second * 0.1, 58, 3, WHITE)
+        hand((now.hour % 12) * 30 + now.minute * 0.5, 42, 5, "#e8edff")
+        cv.create_oval(cx - 5, cy - 5, cx + 5, cy + 5, fill=AMBER, outline="")
 
     def _tick(self):
         self._apply_fetch_result()
