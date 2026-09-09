@@ -672,8 +672,8 @@ class App:
             for w in (self.card, self.st_title, self.st_sub, self.st_next):
                 w.configure(bg=pal["card_bg"])
             self.card.configure(highlightbackground=pal["hl"])
-            if getattr(self, "_now_dot", None):
-                self.clock_cv.itemconfigure(self._now_dot, fill=pal["hl"])
+            for it in getattr(self, "_ring_items", []):
+                self.clock_cv.itemconfigure(it, outline=pal["hl"])
             self.st_title.configure(fg=pal["tfg"])
             for lab in self.cells.values():
                 lab.configure(fg=pal["cbg"])
@@ -719,8 +719,8 @@ class App:
                     self._celltext[key] = txt
                     self.cells[key].configure(text=txt)
 
-        if getattr(self, "_now_dot", None):
-            self._update_markings(now_utc, now_loc, peak)
+        if getattr(self, "_ring_items", None):
+            self._update_markings(now_utc, now_loc)
 
         windows_txt = " & ".join(f"{s:02d}:00-{e:02d}:00" for s, e in PEAK_WINDOWS)
         if self.lang == "he":
@@ -743,14 +743,19 @@ class App:
             cv.create_image(90, 90, image=self.face_img)
         except Exception:
             self.face_img = None
-        # מסגרת דקה ואלגנטית - שלושה קווים ניטרליים עדינים
-        for r, w, col in ((82.8, 1, "#2c3a5e"), (81.0, 2, "#46588a"),
-                          (79.4, 1, "#2c3a5e")):
-            cv.create_oval(90 - r, 90 - r, 90 + r, 90 + r, outline=col, width=w)
+        # מסגרת דקה ויפה: טבעת צבעונית עדינה (לפי מצב המחיר) בין שני קווים ניטרליים
+        cv.create_oval(90 - 83.4, 90 - 83.4, 90 + 83.4, 90 + 83.4,
+                       outline="#2c3a5e", width=1)
+        self._ring_items = [
+            cv.create_oval(90 - 82.0, 90 - 82.0, 90 + 82.0, 90 + 82.0,
+                           outline=GREEN, width=1),
+            cv.create_oval(90 - 80.4, 90 - 80.4, 90 + 80.4, 90 + 80.4,
+                           outline=GREEN, width=3),
+        ]
+        cv.create_oval(90 - 78.6, 90 - 78.6, 90 + 78.6, 90 + 78.6,
+                       outline="#2c3a5e", width=1)
         self._arc_items = []
         self._mark_key = None
-        self._now_dot = cv.create_oval(87.8, 87.8, 92.2, 92.2,
-                                       fill="#47577f", outline="")
         self._hands = {
             "h": cv.create_line(90, 90, 90, 57, width=7, fill="#eef2ff",
                                 capstyle="round"),
@@ -777,8 +782,8 @@ class App:
             y0 = 90 - tail * sa
             cv.coords(self._hands[key], x0, y0, 90 + length * ca, 90 + length * sa)
 
-    def _update_markings(self, now_utc, now_loc, peak):
-        """קשתות ענבר על שעות השיא (לפי שעון מקומי) + נקודת השעה הנוכחית."""
+    def _update_markings(self, now_utc, now_loc):
+        """קשתות ענבר על שעות השיא, לפי שעון מקומי (חוזרות רק כשהמצב משתנה)."""
         cv = self.clock_cv
         off_min = int((now_loc.utcoffset() or dt.timedelta(0)).total_seconds() // 60)
         key = (now_utc.date(), now_utc.weekday(), off_min)
@@ -802,12 +807,6 @@ class App:
                                        90 + 74.5 * math.cos(a) + 2.2,
                                        90 + 74.5 * math.sin(a) + 2.2,
                                        fill=AMBER, outline=""))
-        # נקודת 'עכשיו' על הטבעת: ענבר רק כשהמחיר היקר פעיל, אחרת ניטרלית
-        a = math.radians((now_loc.hour % 12) * 30 + now_loc.minute * 0.5 - 90)
-        cv.coords(self._now_dot,
-                  90 + 76.6 * math.cos(a) - 2.4, 90 + 76.6 * math.sin(a) - 2.4,
-                  90 + 76.6 * math.cos(a) + 2.4, 90 + 76.6 * math.sin(a) + 2.4)
-        cv.itemconfigure(self._now_dot, fill=AMBER if peak else "#47577f")
 
     def _ensure_anim(self, on):
         if on and not self._anim_running:
@@ -846,8 +845,8 @@ class App:
         for w in (self.card, self.st_title, self.st_sub, self.st_next):
             w.configure(bg=bg)
         self.card.configure(highlightbackground=hl)
-        if getattr(self, "_now_dot", None):
-            self.clock_cv.itemconfigure(self._now_dot, fill=hl)
+        for it in getattr(self, "_ring_items", []):
+            self.clock_cv.itemconfigure(it, outline=hl)
         self.st_title.configure(fg=tf)
         for lab in self.cells.values():
             lab.configure(fg=cf)
