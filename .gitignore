@@ -1,0 +1,13 @@
+# PyInstaller work dirs / caches
+build/
+__pycache__/
+*.pyc
+*.spec
+
+# temp assembly file (the canonical source is deepseek_clock.py)
+gui_part.py
+
+# local test artifacts
+gui_test.log
+_chk.png
+_cur_icon.png
