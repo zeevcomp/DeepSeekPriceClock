@@ -15,7 +15,7 @@ DeepSeek bills by the hour: during **peak hours** (full price) and **off-peak ho
 ## Features
 
 - 🕐 **Live local clock** — auto-detects the machine's time zone (works anywhere in the world) with Hebrew/English date
-- 🕰️ **Analog clock option** — switch between a big digital clock and a classic analog face
+- 🕰️ **Analog clock option** — a polished, pre-rendered clock face with silky-smooth hands (≈30 fps sweep), plus silky color transitions when prices flip between peak and off-peak
 - 💰 **Current DeepSeek prices** per 1M tokens (USD) for all three models — `deepseek-v4-flash`, `deepseek-v4-pro`, `deepseek-v4-flash-vision-exp` (input cache-hit, input cache-miss, output)
 - 🔄 **Live countdown** to the next price change, plus the next 4 changes with dates & times in your local time
 - 🌐 **Automatic price updates** — the app fetches the official [DeepSeek pricing page](https://api-docs.deepseek.com/quick_start/pricing) on startup, every 30 minutes, and on demand. It validates the data before applying it and falls back to a built-in snapshot (with a clear status message) if the site is unavailable.
