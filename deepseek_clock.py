@@ -472,13 +472,24 @@ class App:
         self.root.title(self.S["title"])
         S = self.S
         r = self.root
+        # התאמה למסכים נמוכים (למשל RDP 1280x800): רמת קומפקטיות אוטומטית
+        if not hasattr(self, "level"):
+            _env = os.environ.get("DSPC_COMPACT")
+            if _env is not None and _env.isdigit():
+                self.level = min(2, int(_env))
+            else:
+                scr_h = r.winfo_screenheight()
+                self.level = 1 if scr_h < 900 else (0 if scr_h >= 960 else 1)
+        self.compact = self.level >= 1
+        self._ck = (180, 156, 132)[self.level]
+        self._cs = self._ck / 180.0
 
         # שעון: דיגיטלי גדול או אנלוגי (לפי ההעדפה)
         f_head = tk.Frame(r, bg=BG)
         f_head.pack(fill="x", padx=18, pady=(6, 0))
         self.time_lbl = tk.Label(f_head, font=("Segoe UI", 40, "bold"), fg=WHITE, bg=BG)
-        self.clock_cv = tk.Canvas(f_head, width=180, height=180, bg=BG,
-                                  highlightthickness=0)
+        self.clock_cv = tk.Canvas(f_head, width=self._ck, height=self._ck,
+                                  bg=BG, highlightthickness=0)
         if self.mode == "analog":
             self.clock_cv.pack()
             self._init_analog_items()
@@ -505,7 +516,7 @@ class App:
         tk.Label(f_ev, text=S["ev_head"], font=("Segoe UI", 10, "bold"),
                  fg=MUT, bg=BG).pack(anchor="e")
         self.ev_rows = []
-        for _ in range(4):
+        for _ in range((4, 3, 2)[self.level]):
             row = tk.Frame(f_ev, bg=BG)
             row.pack(fill="x")
             dsc = tk.Label(row, font=("Segoe UI", 11), fg=WHITE, bg=BG, anchor="e")
@@ -593,8 +604,19 @@ class App:
             pass
         if self.mode == "analog":
             self._ensure_anim(True)
-        self.root.geometry("")
         self.root.update_idletasks()
+        w = self.root.winfo_reqwidth()
+        h = self.root.winfo_reqheight()
+        sw = self.root.winfo_screenwidth()
+        sh = self.root.winfo_screenheight()
+        self.root.geometry("+%d+%d" % (max(0, (sw - w) // 2), max(0, (sh - h - 60) // 2)))
+        if (not getattr(self, "_fit_done", False)
+                and self.root.winfo_reqheight() > self.root.winfo_screenheight() - 80):
+            self._fit_done = True
+            if self.level < 2:
+                self.level += 1
+                self._build()
+                return
 
     # ------------------------------------------------------------------
     # עדכון מחירים אוטומטי
@@ -702,7 +724,7 @@ class App:
 
         starts = {w0 for w0, _ in PEAK_WINDOWS}
         for i, (dsc, tme) in enumerate(self.ev_rows):
-            b = boundaries_after(now_utc, 4)[i]
+            b = boundaries_after(now_utc, len(self.ev_rows))[i]
             bj = b.astimezone()
             if bj.date() == now_loc.date():
                 pref = ""
@@ -760,32 +782,39 @@ class App:
         """פני שעון (מעובדים) + מסגרת דקה ניטרלית + מחוגים חלקים.
         הצבע שמור רק לסימוני שעות השיא, לא למסגרת כולה."""
         cv = self.clock_cv
+        s = self._cs
+        c = self._ck / 2.0
         try:
             self.face_img = tk.PhotoImage(data=FACE_PNG)
-            cv.create_image(90, 90, image=self.face_img)
+            cv.create_image(c, c, image=self.face_img)
         except Exception:
             self.face_img = None
         # מסגרת דקה ויפה: טבעת צבעונית עדינה (לפי מצב המחיר) בין שני קווים ניטרליים
-        cv.create_oval(90 - 83.4, 90 - 83.4, 90 + 83.4, 90 + 83.4,
+        cv.create_oval(c - 83.4 * s, c - 83.4 * s, c + 83.4 * s, c + 83.4 * s,
                        outline="#2c3a5e", width=1)
         self._ring_items = [
-            cv.create_oval(90 - 82.0, 90 - 82.0, 90 + 82.0, 90 + 82.0,
-                           outline=GREEN, width=1),
-            cv.create_oval(90 - 80.4, 90 - 80.4, 90 + 80.4, 90 + 80.4,
-                           outline=GREEN, width=3),
+            cv.create_oval(c - 82.0 * s, c - 82.0 * s, c + 82.0 * s, c + 82.0 * s,
+                           outline=GREEN, width=max(1, int(round(1 * s)))),
+            cv.create_oval(c - 80.4 * s, c - 80.4 * s, c + 80.4 * s, c + 80.4 * s,
+                           outline=GREEN, width=max(2, int(round(3 * s)))),
         ]
-        cv.create_oval(90 - 78.6, 90 - 78.6, 90 + 78.6, 90 + 78.6,
+        cv.create_oval(c - 78.6 * s, c - 78.6 * s, c + 78.6 * s, c + 78.6 * s,
                        outline="#2c3a5e", width=1)
+        hw = max(2, int(round(7 * s)))
+        mw = max(2, int(round(4 * s)))
+        sw = max(1, int(round(2 * s)))
         self._hands = {
-            "h": cv.create_line(90, 90, 90, 57, width=7, fill="#eef2ff",
+            "h": cv.create_line(c, c, c, c - 33 * s, width=hw, fill="#eef2ff",
                                 capstyle="round"),
-            "m": cv.create_line(90, 90, 90, 42, width=4, fill="#ffffff",
+            "m": cv.create_line(c, c, c, c - 48 * s, width=mw, fill="#ffffff",
                                 capstyle="round"),
-            "s": cv.create_line(90, 90, 90, 42, width=2, fill=AMBER,
+            "s": cv.create_line(c, c, c, c - 48 * s, width=sw, fill=AMBER,
                                 capstyle="round"),
         }
-        cv.create_oval(85, 85, 95, 95, fill="#0c1322", outline="")
-        cv.create_oval(88, 88, 92, 92, fill=AMBER, outline="")
+        r1 = 5 * s
+        r2 = 2 * s
+        cv.create_oval(c - r1, c - r1, c + r1, c + r1, fill="#0c1322", outline="")
+        cv.create_oval(c - r2, c - r2, c + r2, c + r2, fill=AMBER, outline="")
 
     def _analog_now(self, now_loc):
         """עדכון קואורדינטות המחוגים - חלק, ללא מחיקת קנבס."""
@@ -795,12 +824,15 @@ class App:
         deg = {"h": (t / 3600 % 12) * 30,
                "m": (t / 60 % 60) * 6,
                "s": (t % 60) * 6}
+        c = self._ck / 2.0
+        s = self._cs
         for key, length, tail in (("s", 62, 15), ("m", 48, 0), ("h", 33, 0)):
             a = math.radians(deg[key] - 90)
             ca, sa = math.cos(a), math.sin(a)
-            x0 = 90 - tail * ca
-            y0 = 90 - tail * sa
-            cv.coords(self._hands[key], x0, y0, 90 + length * ca, 90 + length * sa)
+            x0 = c - tail * s * ca
+            y0 = c - tail * s * sa
+            cv.coords(self._hands[key], x0, y0,
+                      c + length * s * ca, c + length * s * sa)
 
     def _ensure_anim(self, on):
         if on and not self._anim_running:
@@ -863,7 +895,20 @@ class App:
         self.root.after(250, self._tick)
 
 
+def _enable_dpi_awareness():
+    """בלי זה Windows מדווח גובה מסך וירטואלי שגוי והחלון נופל מתחת למסך."""
+    try:
+        import ctypes
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)   # per-monitor aware
+        except Exception:
+            ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+
+
 def main():
+    _enable_dpi_awareness()
     root = tk.Tk()
     App(root)
     root.mainloop()

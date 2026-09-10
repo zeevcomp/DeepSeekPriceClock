@@ -21,6 +21,7 @@ DeepSeek bills by the hour: during **peak hours** (full price) and **off-peak ho
 - 🌐 **Automatic price updates** — the app fetches the official [DeepSeek pricing page](https://api-docs.deepseek.com/quick_start/pricing) on startup, every 30 minutes, and on demand. It validates the data before applying it and falls back to a built-in snapshot (with a clear status message) if the site is unavailable.
 - 📅 **DST-aware** — peak windows are converted from UTC on the fly, so each user's local summer/winter time is always correct
 - 🌍 **Bilingual** — Hebrew & English, switch anytime with one click (the app remembers your choice; first launch auto-detects the Windows UI language)
+- 📐 **Fits any screen** — the window auto-scales itself (clock size + list density, three levels) so the buttons are always reachable, even on a 1280x800 session
 - 📦 **100% portable** — single `.exe`, no installation, no Python needed. Runs on any 64-bit Windows 10/11. Copy it to a USB stick and go.
 
 ## Download

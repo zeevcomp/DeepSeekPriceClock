@@ -11,3 +11,7 @@ gui_part.py
 gui_test.log
 _chk.png
 _cur_icon.png
+
+# build env / temp
+.buildvenv/
+_notes.md
