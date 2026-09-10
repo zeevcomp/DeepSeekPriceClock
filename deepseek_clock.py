@@ -20,11 +20,10 @@ JER = ZoneInfo("Asia/Jerusalem")
 UTC = dt.timezone.utc
 
 # ---------- תמונת מצב מובנית (גיבוי; עודכנה 9.9.2026 מהאתר הרשמי) ----------
-SNAPSHOT_DATE = "9.9.2026"
-SNAPSHOT = {  # api id -> (cache-hit, cache-miss, output) ל-1M טוקנים, USD
-    "deepseek-v4-flash":            {"name": "V4 Flash",  "peak": (0.014, 0.44, 1.32)},
-    "deepseek-v4-pro":              {"name": "V4 Pro",    "peak": (0.044, 1.32, 3.96)},
-    "deepseek-v4-flash-vision-exp": {"name": "V4 Vision", "peak": (0.014, 0.44, 1.32)},
+SNAPSHOT_DATE = "10.9.2026"
+SNAPSHOT = {  # api id -> מחיר שיא (cache-hit, cache-miss, output) ל-1M טוקנים, USD
+    "deepseek-flash":  {"name": "V4.1 Flash", "peak": (0.006, 0.30, 1.20)},
+    "deepseek-v4-pro": {"name": "V4 Pro",     "peak": (0.044, 1.32, 3.96)},
 }
 PRICES = {k: dict(v, off=tuple(p / 2 for p in v["peak"])) for k, v in SNAPSHOT.items()}
 
@@ -117,19 +116,34 @@ def _nums_in(texts):
     return [float(m) for t in texts for m in re.findall(r"\$?\s*(\d+(?:\.\d+)?)", t)]
 
 
-def _parse_transposed(rows):
-    """מבנה נוכחי: מודלים בעמודות; שורות מחיר = מדד+OFF-PEAK/PEAK עם ערך לכל מודל.
-    מסדר העמודות נקבע משורת הכותרת (MODEL | flash | pro | vision)."""
+def _clean_model_id(t):
+    """ניקוי מזהה דגם מתא הטבלה: רווחים וסימוני הערות כמו (1)."""
+    t = re.sub(r"\s+", " ", t).strip().lower()
+    return re.sub(r"\s*\(\d+\)$", "", t).strip()
+
+
+def _parse_table(rows):
+    """פענוח טבלת המחירים: הדגמים נלמדים מעמודות הכותרת (לא קשיח!).
+    שורות מחיר = מדד + OFF-PEAK/PEAK, ערך אחד לכל דגם לפי סדר העמודות."""
     models = None
     for texts in rows[:3]:
-        cand = [t.lower() for t in texts[1:4]]
-        if len(cand) == 3 and all(c in PRICES for c in cand):
+        cand = [_clean_model_id(t) for t in texts[1:]]
+        if cand and all(re.fullmatch(r"deepseek[-_a-z0-9.]+", c) for c in cand):
             models = cand
             break
     if not models:
-        return None
+        return None, {}
+    names = {}
+    for texts in rows:
+        if texts and texts[0].strip().upper().startswith("MODEL VERSION"):
+            for ci, t in enumerate(texts[1:]):
+                if ci < len(models):
+                    v = re.sub(r"^deepseek-", "", t.strip(), flags=re.I)
+                    v = re.sub(r"-\d{4}$", "", v)
+                    names[models[ci]] = v.replace("-", " ").strip() or models[ci]
+            break
     metric = None
-    state_rows = {}   # (metric, state) -> 3 ערכים לפי סדר העמודות
+    state_rows = {}   # (metric, state) -> ערך לכל דגם לפי סדר העמודות
     for texts in rows:
         joined = " ".join(texts).upper()
         for kw in ("CACHE HIT", "CACHE MISS", "OUTPUT TOKENS"):
@@ -145,23 +159,19 @@ def _parse_transposed(rows):
         if metric and state:
             try:
                 sidx = next(i for i, t in enumerate(texts)
-                            if "OFF-PEAK" in t or "PEAK" in t)
+                            if "OFF-PEAK" in t.upper() or "PEAK" in t.upper())
             except StopIteration:
                 sidx = None
             if sidx is not None:
-                vals = _nums_in(texts[sidx + 1:sidx + 4])
-                if len(vals) >= 3:
-                    state_rows[(metric, state)] = vals[:3]
-    pairs = {  # metric -> (ערך-שפל, ערך-שיא) לפי שם מפתח
-        "CACHE HIT": ("hit_off", "hit_on"),
-        "CACHE MISS": ("miss_off", "miss_on"),
-        "OUTPUT TOKENS": ("out_off", "out_on"),
-    }
+                vals = _nums_in(texts[sidx + 1:])
+                if len(vals) >= len(models):
+                    state_rows[(metric, state)] = vals[:len(models)]
+    pairs = {"CACHE HIT": ("hit_off", "hit_on"),
+             "CACHE MISS": ("miss_off", "miss_on"),
+             "OUTPUT TOKENS": ("out_off", "out_on")}
     need = {"hit_off", "hit_on", "miss_off", "miss_on", "out_off", "out_on"}
     found = {}
     for i, api in enumerate(models):
-        if api not in PRICES:
-            continue
         vals = {}
         for metric, (k_off, k_on) in pairs.items():
             off = state_rows.get((metric, "off"))
@@ -172,17 +182,18 @@ def _parse_transposed(rows):
                 all(vals[a] <= vals[b] and 1.0 <= vals[b] / vals[a] <= 10.0
                     for a, b in (("hit_off", "hit_on"), ("miss_off", "miss_on"),
                                  ("out_off", "out_on"))):
-            found[api] = (vals["hit_off"], vals["hit_on"], vals["miss_off"],
-                          vals["miss_on"], vals["out_off"], vals["out_on"])
-    return found or None
+            found[api] = {"name": names.get(api) or api,
+                          "off": (vals["hit_off"], vals["miss_off"], vals["out_off"]),
+                          "peak": (vals["hit_on"], vals["miss_on"], vals["out_on"])}
+    return (found or None), names
 
 
 def _parse_per_model_rows(rows):
     """מבנה ישן/חלופי: כל שורה = שם מודל + 6 מחירים (שפל,שיא לכל מדד)."""
     found = {}
     for texts in rows:
-        first = texts[0].lower()
-        if first in PRICES:
+        first = _clean_model_id(texts[0])
+        if first.startswith("deepseek"):
             nums = _nums_in(texts[1:])
             if len(nums) >= 6:
                 hit_off, hit_on, miss_off, miss_on, out_off, out_on = nums[:6]
@@ -191,16 +202,19 @@ def _parse_per_model_rows(rows):
                 ok = ok and all(1.0 <= b / a <= 10.0 for a, b in
                                 ((hit_off, hit_on), (miss_off, miss_on), (out_off, out_on)))
                 if ok:
-                    found[first] = (hit_off, hit_on, miss_off, miss_on, out_off, out_on)
+                    found[first] = {"name": first, "off": (hit_off, miss_off, out_off),
+                                    "peak": (hit_on, miss_on, out_on)}
     return found or None
 
 
 def parse_pricing(html_text):
-    """מחזיר (מחירים חדשים, חלונות שיא) או None אם אין תוכן מחירים תקין בעמוד."""
-    if not any(m in html_text for m in PRICES) or "$" not in html_text:
+    """מחזיר (מחירים חדשים עם שמות, חלונות שיא) או None אם אין תוכן מחירים תקין."""
+    if "$" not in html_text or "OFF-PEAK" not in html_text.upper():
         return None
     rows = _table_rows(html_text)
-    found = _parse_transposed(rows) or _parse_per_model_rows(rows)
+    found, _names = _parse_table(rows)
+    if not found:
+        found = _parse_per_model_rows(rows)
     if not found:
         return None
     m = re.search(r"Peak hours are (\d{1,2}):\d{2}\s*-\s*(\d{1,2}):\d{2}\s*and\s*"
@@ -229,7 +243,7 @@ def fetch_prices():
                 urls.append(v)
     try:
         sitemap = _http_get(SITEMAP_URL)
-        extra = re.findall(r"<loc>(.*?pricing[^<]*)</loc>", sitemap, re.I)
+        extra = re.findall(r"<loc>([^<]*pricing[^<]*)</loc>", sitemap, re.I)
         for u in extra:
             for v in _url_variants(u):
                 if v not in urls:
@@ -247,22 +261,24 @@ def fetch_prices():
 
 
 def apply_prices(found, windows):
-    """מעדכן את הגלובלים; מחזיר תיאור קצר לשורת הסטטוס."""
+    """מעדכן את הגלובלים; מחזיר (דגמים שהשתנו, חלונות השתנו, דגמים שהוסרו)."""
     global PEAK_WINDOWS
-    changed, msg = [], []
-    for api, (hit_off, hit_peak, miss_off, miss_peak, out_off, out_peak) in found.items():
-        entry = PRICES[api]
-        new = {"name": entry["name"],
-               "peak": (hit_peak, miss_peak, out_peak),
-               "off": (hit_off, miss_off, out_off)}
-        if new["peak"] != entry["peak"] or new["off"] != entry["off"]:
-            changed.append(entry["name"])
-        PRICES[api] = new
     win_changed = False
     if windows and windows != PEAK_WINDOWS:
         PEAK_WINDOWS = windows
         win_changed = True
-    return changed, win_changed
+    changed = []
+    for api, d in found.items():
+        old = PRICES.get(api)
+        if (not old or old.get("peak") != tuple(d["peak"])
+                or old.get("off") != tuple(d["off"])
+                or old.get("name") != d["name"]):
+            changed.append(d["name"])
+    removed = [v["name"] for k, v in PRICES.items() if k not in found]
+    PRICES.clear()
+    PRICES.update({api: {"name": d["name"], "off": tuple(d["off"]),
+                         "peak": tuple(d["peak"])} for api, d in found.items()})
+    return changed, win_changed, removed
 
 
 # ================================================================ GUI
@@ -313,7 +329,7 @@ S_EN = {
     "upd_ok_windows": "Peak hours updated · {time} (official site)",
     "upd_fail_noprice": "Auto-update failed (official site not serving prices) — showing snapshot from {date} · retrying every {min} min",
     "upd_fail_err": "Update error: {err}",
-    "note": "Price per 1M tokens, USD. Peak hours (UTC): {w}, weekdays only (weekends = off-peak all day). Models: DeepSeek-V4-Flash-0731 / V4-Pro-0813. Source: api-docs.deepseek.com",
+    "note": "Price per 1M tokens, USD. Peak hours (UTC): {w}, weekdays only (weekends = off-peak all day). Models: DeepSeek-V4.1-Flash / V4-Pro-0813. Source: api-docs.deepseek.com",
     "topmost": "Always on top", "btn_en": "English",
     "btn_dig": "Digital", "btn_ana": "Analog",
     "zone": "Local time zone: {z} ({o})",
@@ -339,7 +355,7 @@ S_HE = {
     "upd_ok_windows": "עודכנו שעות השיא · {time} (האתר הרשמי)",
     "upd_fail_noprice": "עדכון אוטומטי נכשל (האתר לא מחזיר מחירים) — מציג תמונת מחירים מ-{date} · ניסיון חוזר כל {min} דקות",
     "upd_fail_err": "שגיאת עדכון: {err}",
-    "note": "מחיר ל-1M טוקנים, USD. שעות שיא (UTC): {w}, ימי חול בלבד (סוף שבוע = שפל כל היום). דגמים: DeepSeek-V4-Flash-0731 / V4-Pro-0813. מקור: api-docs.deepseek.com",
+    "note": "מחיר ל-1M טוקנים, USD. שעות שיא (UTC): {w}, ימי חול בלבד (סוף שבוע = שפל כל היום). דגמים: DeepSeek-V4.1-Flash / V4-Pro-0813. מקור: api-docs.deepseek.com",
     "topmost": "חלון תמיד מעל", "btn_en": "English",
     "btn_dig": "שעון דיגיטלי", "btn_ana": "שעון אנלוגי",
     "zone": "אזור זמן מקומי: {z} ({o})",
@@ -517,7 +533,7 @@ class App:
                          font=("Segoe UI", 8), fg=MUT, bg=PANEL).grid(
                     row=2, column=col0 + ci, padx=4)
         self.cells = {}
-        for mi, (api, data) in enumerate(MODEL_ROWS):
+        for mi, (api, data) in enumerate(list(PRICES.items())):
             rowbg = PANEL if mi % 2 == 0 else "#151d2e"
             tk.Label(f_tab, text=data["name"], font=("Segoe UI", 10, "bold"),
                      fg=WHITE, bg=rowbg, anchor="w").grid(
@@ -530,7 +546,7 @@ class App:
                     self.cells[(mi, state, c)] = lab
         tk.Label(f_tab, text=S["tab_note"], font=("Segoe UI", 8), fg=MUT, bg=PANEL,
                  justify="right", wraplength=560).grid(
-            row=3 + len(MODEL_ROWS), column=0, columnspan=7, sticky="e",
+            row=3 + len(PRICES), column=0, columnspan=7, sticky="e",
             padx=12, pady=(4, 7))
 
         # שורת עדכון + מעבר שפה
@@ -614,7 +630,11 @@ class App:
         t = dt.datetime.now().strftime("%H:%M:%S")
         if kind[0] == "ok":
             _, found, windows = kind
-            changed, win_changed = apply_prices(found, windows)
+            keys_before = tuple(PRICES.keys())
+            changed, win_changed, removed = apply_prices(found, windows)
+            if tuple(PRICES.keys()) != keys_before:
+                self._build()      # רשימת הדגמים השתנתה - בונים את הטבלה מחדש
+                self._refresh()
             if changed:
                 txt = self.S["upd_ok_changed"].format(names=", ".join(changed), time=t)
             elif win_changed:

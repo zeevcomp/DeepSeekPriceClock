@@ -1,20 +1,22 @@
-**v1.7.1 — everything now fits in the window.**
+**v1.8.0 — auto-update fixed: the app now discovers DeepSeek's models and prices dynamically.**
 
-### What changed
-- 📐 **Compact layout** — the window height dropped from ~941px to ~753px (analog) / ~650px (digital), so the buttons and footer are always reachable, even on smaller screens
-- 💰 The full price table (off-peak + peak) is now **one row per model** with six columns — groups labelled `off-peak | peak` — and alternating row shading instead of dividers
-- Tighter paddings and fonts throughout (clock, status card, upcoming-changes list) for a cleaner, denser look
+### What was wrong
+DeepSeek **renamed and restructured** their pricing page: the model list changed (now `deepseek-flash` — V4.1 Flash — and `deepseek-v4-pro`; the vision model was merged into flash), the model names in the table are different, and prices changed. The app's parser was looking for the old hard-coded model ids, so the auto-update silently failed and the app kept showing the built-in snapshot.
 
-### Still included
-- Analog clock by default, thin frame colored by the current price state
-- Both off-peak and peak prices per 1M tokens (USD) for all three models, active state highlighted
-- Live local time zone, Hebrew + English UI, auto updates every 30 min
-- Single portable `.exe` — 64-bit Windows 10/11, no install
+### What's fixed
+- 🔎 **Dynamic discovery** — the parser now reads the model columns straight from the table (any `deepseek-*` id), matches prices per column, and picks up display names from the `MODEL VERSION` row (e.g. `DeepSeek-V4.1-Flash` → "V4.1 Flash")
+- 🔄 **The table rebuilds itself** when the model list changes — new, renamed or removed models appear on their own, no app update needed
+- 🧮 New prices currently live: V4.1 Flash — off-peak $0.003 / $0.15 / $0.6, peak $0.006 / $0.3 / $1.2 per 1M tokens (cache-hit / cache-miss / output); V4 Pro unchanged at $0.022/$0.66/$1.98 off-peak
+- 🐛 Fixed a sitemap-regex bug that produced garbage candidate URLs and wasted fetch attempts
+- 📦 Built-in fallback snapshot refreshed to the current official data
+
+### Verified
+Live fetch succeeds in ~0.5 s from the official page, prices and peak windows parse correctly, the UI rebuilt itself from 2 → 3 models in a simulated model-set change, and the status row shows green "Prices up to date (official site)".
 
 ### Download
 **DeepSeekPriceClock.exe** (~11 MB). SmartScreen warning? → **More info → Run anyway**.
 
 ### SHA-256
-`7311cbbc3285f3ca01403cca7a7e16b2fe3ccd1d3206cc49cc11adfff9fabd94`
+`a27484728a46e15acf5b76240d4280008b487bef9ca13a74f6c879e26866fb6a`
 
-> Not affiliated with DeepSeek. Prices and peak hours fetched from DeepSeek official docs.
+> Not affiliated with DeepSeek. Prices and peak hours fetched from DeepSeek's official docs.
