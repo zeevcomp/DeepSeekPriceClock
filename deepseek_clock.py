@@ -459,7 +459,7 @@ class App:
 
         # שעון: דיגיטלי גדול או אנלוגי (לפי ההעדפה)
         f_head = tk.Frame(r, bg=BG)
-        f_head.pack(fill="x", padx=18, pady=(10, 2))
+        f_head.pack(fill="x", padx=18, pady=(6, 0))
         self.time_lbl = tk.Label(f_head, font=("Segoe UI", 40, "bold"), fg=WHITE, bg=BG)
         self.clock_cv = tk.Canvas(f_head, width=180, height=180, bg=BG,
                                   highlightthickness=0)
@@ -469,80 +469,73 @@ class App:
         else:
             self.time_lbl.pack()
         self.date_lbl = tk.Label(f_head, font=("Segoe UI", 12), fg=MUT, bg=BG)
-        self.date_lbl.pack(pady=(4, 0))
+        self.date_lbl.pack(pady=(2, 0))
         self.zone_lbl = tk.Label(f_head, font=("Segoe UI", 9), fg=ACCENT, bg=BG)
         self.zone_lbl.pack()
 
         # כרטיס מצב מחיר
         self.card = tk.Frame(r, bg=CARD_OFF, highlightthickness=1, highlightbackground=BORDER)
-        self.card.pack(fill="x", padx=18, pady=6)
+        self.card.pack(fill="x", padx=18, pady=4)
         self.st_title = tk.Label(self.card, font=("Segoe UI", 17, "bold"), fg=GREEN, bg=CARD_OFF)
-        self.st_title.pack(pady=(10, 0))
+        self.st_title.pack(pady=(7, 0))
         self.st_sub = tk.Label(self.card, font=("Segoe UI", 10), fg=MUT, bg=CARD_OFF)
         self.st_sub.pack()
         self.st_next = tk.Label(self.card, font=("Segoe UI", 13, "bold"), fg=WHITE, bg=CARD_OFF)
-        self.st_next.pack(pady=(2, 12))
+        self.st_next.pack(pady=(0, 8))
 
         # השינויים הקרובים
         f_ev = tk.Frame(r, bg=BG)
-        f_ev.pack(fill="x", padx=18, pady=(8, 2))
-        tk.Label(f_ev, text=S["ev_head"], font=("Segoe UI", 11, "bold"),
+        f_ev.pack(fill="x", padx=18, pady=(5, 2))
+        tk.Label(f_ev, text=S["ev_head"], font=("Segoe UI", 10, "bold"),
                  fg=MUT, bg=BG).pack(anchor="e")
         self.ev_rows = []
         for _ in range(4):
             row = tk.Frame(f_ev, bg=BG)
-            row.pack(fill="x", pady=1)
-            dsc = tk.Label(row, font=("Segoe UI", 12), fg=WHITE, bg=BG, anchor="e")
+            row.pack(fill="x")
+            dsc = tk.Label(row, font=("Segoe UI", 11), fg=WHITE, bg=BG, anchor="e")
             dsc.pack(side="right", fill="x", expand=True)
-            tme = tk.Label(row, font=("Segoe UI", 12, "bold"), fg=ACCENT, bg=BG)
+            tme = tk.Label(row, font=("Segoe UI", 11, "bold"), fg=ACCENT, bg=BG)
             tme.pack(side="right", padx=(10, 0))
             self.ev_rows.append((dsc, tme))
 
-        # טבלת מחירים מלאה - שפל + שיא לכל דגם, המצב הפעיל מודגש
+        # טבלת מחירים קומפקטית: שורה לכל דגם, שפל | שיא (6 עמודות)
         f_tab = tk.Frame(r, bg=PANEL, highlightthickness=1,
                          highlightbackground="#1e2a44")
-        f_tab.pack(fill="x", padx=18, pady=(12, 4))
-        tk.Label(f_tab, text=S["tab_caption"], font=("Segoe UI", 11, "bold"),
+        f_tab.pack(fill="x", padx=18, pady=(8, 2))
+        tk.Label(f_tab, text=S["tab_caption"], font=("Segoe UI", 10, "bold"),
                  fg=MUT, bg=PANEL, justify="right").grid(
-            row=0, column=0, columnspan=4, sticky="e", padx=12, pady=(8, 1))
-        for c, htext in enumerate(("", S["h_hit"], S["h_miss"], S["h_out"])):
-            tk.Label(f_tab, text=htext, font=("Segoe UI", 10, "bold"), fg=MUT,
-                     bg=PANEL, justify="right").grid(
-                row=1, column=c, padx=8, pady=2, sticky="e" if c else "w")
-        self.cells = {}
+            row=0, column=0, columnspan=7, sticky="e", padx=12, pady=(7, 0))
         self.state_rows = []
-        grid_row = 2
+        for gi, state in enumerate((False, True)):
+            col0 = 1 + gi * 3
+            hdr = tk.Label(f_tab, text=S["st_off"] if not state else S["st_on"],
+                           font=("Segoe UI", 10, "bold"), fg=DIM_LBL, bg=PANEL)
+            hdr.grid(row=1, column=col0, columnspan=3, padx=4, pady=(3, 0))
+            self.state_rows.append((hdr, state))
+            for ci, htext in enumerate((S["h_hit"], S["h_miss"], S["h_out"])):
+                tk.Label(f_tab, text=htext.replace("\n", " "),
+                         font=("Segoe UI", 8), fg=MUT, bg=PANEL).grid(
+                    row=2, column=col0 + ci, padx=4)
+        self.cells = {}
         for mi, (api, data) in enumerate(MODEL_ROWS):
-            if mi:
-                tk.Frame(f_tab, bg="#1e2a44", height=1).grid(
-                    row=grid_row, column=0, columnspan=4, sticky="ew",
-                    padx=12, pady=(5, 0))
-            grid_row += 1
-            tk.Label(f_tab, text=data["name"], font=("Segoe UI", 11, "bold"),
-                     fg=WHITE, bg=PANEL, anchor="w").grid(
-                row=grid_row, column=0, columnspan=4, sticky="w",
-                padx=12, pady=(2, 0))
-            grid_row += 1
-            for state in (False, True):
-                sl = tk.Label(f_tab, text=S["st_off"] if not state else S["st_on"],
-                              font=("Segoe UI", 10, "bold"), fg=DIM_LBL, bg=PANEL,
-                              anchor="w")
-                sl.grid(row=grid_row, column=0, sticky="w", padx=(14, 6))
-                self.state_rows.append((sl, state))
+            rowbg = PANEL if mi % 2 == 0 else "#151d2e"
+            tk.Label(f_tab, text=data["name"], font=("Segoe UI", 10, "bold"),
+                     fg=WHITE, bg=rowbg, anchor="w").grid(
+                row=3 + mi, column=0, sticky="w", padx=(12, 6), pady=2)
+            for state, col0 in ((False, 1), (True, 4)):
                 for c in range(1, 4):
-                    lab = tk.Label(f_tab, text="", font=("Consolas", 11, "bold"),
-                                   fg=DIM, bg=PANEL, anchor="e", width=8)
-                    lab.grid(row=grid_row, column=c, padx=8, sticky="e")
+                    lab = tk.Label(f_tab, text="", font=("Consolas", 10, "bold"),
+                                   fg=DIM, bg=rowbg, anchor="e", width=7)
+                    lab.grid(row=3 + mi, column=col0 + c - 1, padx=4)
                     self.cells[(mi, state, c)] = lab
-                grid_row += 1
-        tk.Label(f_tab, text=S["tab_note"], font=("Segoe UI", 9), fg=MUT, bg=PANEL,
-                 justify="right", wraplength=520).grid(
-            row=grid_row, column=0, columnspan=4, sticky="e", padx=12,
-            pady=(4, 8))
+        tk.Label(f_tab, text=S["tab_note"], font=("Segoe UI", 8), fg=MUT, bg=PANEL,
+                 justify="right", wraplength=560).grid(
+            row=3 + len(MODEL_ROWS), column=0, columnspan=7, sticky="e",
+            padx=12, pady=(4, 7))
 
         # שורת עדכון + מעבר שפה
         f_upd = tk.Frame(r, bg=BG)
-        f_upd.pack(fill="x", padx=18, pady=(2, 2))
+        f_upd.pack(fill="x", padx=18, pady=(3, 0))
         self.btn_upd = tk.Button(f_upd, text=S["upd_btn"], command=self._manual_update,
                                  bg="#1c2330", fg=ACCENT, activebackground="#26304a",
                                  activeforeground=ACCENT, relief="flat",
@@ -568,7 +561,7 @@ class App:
 
         # תחתית
         f_ftr = tk.Frame(r, bg=BG)
-        f_ftr.pack(fill="x", padx=18, pady=(4, 12))
+        f_ftr.pack(fill="x", padx=18, pady=(2, 8))
         self.note_lbl = tk.Label(f_ftr, font=("Segoe UI", 8), fg=MUT, bg=BG,
                                  justify="right", wraplength=540)
         self.note_lbl.pack(side="right", fill="x", expand=True)

@@ -1,22 +1,20 @@
-**v1.7.0 — the price table now shows every price, in a cleaner card design.**
+**v1.7.1 — everything now fits in the window.**
 
-### What's new
-- 💰 **All prices visible** — the table previously showed only the currently active price; now each model shows **both off-peak and peak prices** side by side:
-  - a row per state (`off-peak` / `peak`) × the three metrics (cache-hit input, cache-miss input, output)
-  - the row matching the **current** state is highlighted in the state color (green off-peak / amber peak); the inactive row stays dim
-- 🎨 **Prettier card design** — the table sits in its own panel with a subtle border, per-model groups with hairline dividers, and monospaced aligned numbers
-- ✨ The smooth color-morph transition now also animates the table highlighting (every row's color eases over ~0.6 s on each state flip)
+### What changed
+- 📐 **Compact layout** — the window height dropped from ~941px to ~753px (analog) / ~650px (digital), so the buttons and footer are always reachable, even on smaller screens
+- 💰 The full price table (off-peak + peak) is now **one row per model** with six columns — groups labelled `off-peak | peak` — and alternating row shading instead of dividers
+- Tighter paddings and fonts throughout (clock, status card, upcoming-changes list) for a cleaner, denser look
 
 ### Still included
-- Analog clock by default with the thin frame that shows the current price state
-- Silky ~30 fps hands, live local time zone, Hebrew + English UI
-- Automatic price updates from the official DeepSeek pricing page (every 30 min + on demand)
+- Analog clock by default, thin frame colored by the current price state
+- Both off-peak and peak prices per 1M tokens (USD) for all three models, active state highlighted
+- Live local time zone, Hebrew + English UI, auto updates every 30 min
 - Single portable `.exe` — 64-bit Windows 10/11, no install
 
 ### Download
 **DeepSeekPriceClock.exe** (~11 MB). SmartScreen warning? → **More info → Run anyway**.
 
 ### SHA-256
-`d17adc8f8cc29288d537c05c51f28fb1550b914c337b4b319396d63e1d000148`
+`7311cbbc3285f3ca01403cca7a7e16b2fe3ccd1d3206cc49cc11adfff9fabd94`
 
-> Not affiliated with DeepSeek. Prices and peak hours fetched from DeepSeek's official docs.
+> Not affiliated with DeepSeek. Prices and peak hours fetched from DeepSeek official docs.
