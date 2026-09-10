@@ -284,6 +284,9 @@ WHITE = "#ffffff"
 BORDER = "#262b36"
 ACCENT = "#4f8cff"
 ERRC = "#ff8a80"
+PANEL = "#121927"      # רקע כרטיס טבלת המחירים
+DIM = "#55617a"        # מספר לא-פעיל
+DIM_LBL = "#66718a"    # תווית מצב לא-פעילה
 
 WEEKDAY_EN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
               "Saturday", "Sunday"]
@@ -299,9 +302,10 @@ S_EN = {
     "next_rise": "Price rises to full in {delta}  ( {when} )",
     "ev_head": "Upcoming changes — your local time:",
     "ev_rise": "Price up — full (2x)", "ev_fall": "Price down — off-peak (50%)",
-    "tab_caption": "Current price per 1M tokens (USD):",
+    "tab_caption": "Token prices per 1M (USD) — all states:",
+    "st_off": "off-peak", "st_on": "peak",
     "h_hit": "Input\n(cache hit)", "h_miss": "Input\n(cache miss)", "h_out": "Output",
-    "tab_note": "(cache hit = repeated reads from the context cache · during peak hours prices are 2x higher)",
+    "tab_note": "(cache hit = repeated reads from the context cache · the row matching the current price state is highlighted)",
     "upd_btn": "Update now", "upd_busy": "Updating…",
     "upd_init": "Built-in price snapshot from {date} — waiting for first auto-update…",
     "upd_ok_changed": "Prices updated: {names} · {time} (official site)",
@@ -324,9 +328,10 @@ S_HE = {
     "next_rise": "המחיר יעלה למחיר מלא בעוד {delta}  ( {when} )",
     "ev_head": "השינויים הקרובים — זמן מקומי:",
     "ev_rise": "עלייה — מחיר מלא (פי 2)", "ev_fall": "ירידה — מחיר שפל (50%)",
-    "tab_caption": "מחיר פעיל ל-1M טוקנים (USD):",
+    "tab_caption": "מחירי טוקנים ל-1M (USD) — כל המצבים:",
+    "st_off": "שפל", "st_on": "שיא",
     "h_hit": "קלט\n(מטמון)", "h_miss": "קלט\n(רגיל)", "h_out": "פלט",
-    "tab_note": "(cache hit = קריאות חוזרות לזיכרון מטמון · בזמן שיא המחירים גבוהים פי 2)",
+    "tab_note": "(cache hit = קריאות חוזרות לזיכרון מטמון · השורה שתואמת את מצב המחיר כעת מודגשת)",
     "upd_btn": "עדכן עכשיו", "upd_busy": "מעדכן...",
     "upd_init": "תמונת מחירים מובנית מ-{date} — ממתין לעדכון אוטומטי ראשון...",
     "upd_ok_changed": "המחירים עודכנו: {names} · {time} (האתר הרשמי)",
@@ -493,30 +498,47 @@ class App:
             tme.pack(side="right", padx=(10, 0))
             self.ev_rows.append((dsc, tme))
 
-        # טבלת מחירים
-        f_tab = tk.Frame(r, bg=BG)
-        f_tab.pack(fill="x", padx=18, pady=(12, 2))
+        # טבלת מחירים מלאה - שפל + שיא לכל דגם, המצב הפעיל מודגש
+        f_tab = tk.Frame(r, bg=PANEL, highlightthickness=1,
+                         highlightbackground="#1e2a44")
+        f_tab.pack(fill="x", padx=18, pady=(12, 4))
         tk.Label(f_tab, text=S["tab_caption"], font=("Segoe UI", 11, "bold"),
-                 fg=MUT, bg=BG, justify="right").grid(row=0, column=0, columnspan=4,
-                                                      sticky="e", pady=(0, 4))
+                 fg=MUT, bg=PANEL, justify="right").grid(
+            row=0, column=0, columnspan=4, sticky="e", padx=12, pady=(8, 1))
         for c, htext in enumerate(("", S["h_hit"], S["h_miss"], S["h_out"])):
             tk.Label(f_tab, text=htext, font=("Segoe UI", 10, "bold"), fg=MUT,
-                     bg=BG, justify="right").grid(row=1, column=c, padx=8, pady=2,
-                                                  sticky="e" if c else "w")
+                     bg=PANEL, justify="right").grid(
+                row=1, column=c, padx=8, pady=2, sticky="e" if c else "w")
         self.cells = {}
-        for row_i, (api, data) in enumerate(MODEL_ROWS, start=2):
+        self.state_rows = []
+        grid_row = 2
+        for mi, (api, data) in enumerate(MODEL_ROWS):
+            if mi:
+                tk.Frame(f_tab, bg="#1e2a44", height=1).grid(
+                    row=grid_row, column=0, columnspan=4, sticky="ew",
+                    padx=12, pady=(5, 0))
+            grid_row += 1
             tk.Label(f_tab, text=data["name"], font=("Segoe UI", 11, "bold"),
-                     fg=WHITE, bg=BG, anchor="w").grid(row=row_i, column=0,
-                                                       padx=(0, 14), pady=3, sticky="w")
-            for c in range(1, 4):
-                lab = tk.Label(f_tab, text="", font=("Consolas", 12, "bold"),
-                               fg=GREEN, bg=BG, anchor="e", width=9)
-                lab.grid(row=row_i, column=c, padx=8, sticky="e")
-                self.cells[(row_i, c)] = lab
-        tk.Label(f_tab, text=S["tab_note"], font=("Segoe UI", 9), fg=MUT, bg=BG,
-                 justify="right", wraplength=520).grid(row=len(MODEL_ROWS) + 2,
-                                                       column=0, columnspan=4,
-                                                       pady=(6, 2), sticky="e")
+                     fg=WHITE, bg=PANEL, anchor="w").grid(
+                row=grid_row, column=0, columnspan=4, sticky="w",
+                padx=12, pady=(2, 0))
+            grid_row += 1
+            for state in (False, True):
+                sl = tk.Label(f_tab, text=S["st_off"] if not state else S["st_on"],
+                              font=("Segoe UI", 10, "bold"), fg=DIM_LBL, bg=PANEL,
+                              anchor="w")
+                sl.grid(row=grid_row, column=0, sticky="w", padx=(14, 6))
+                self.state_rows.append((sl, state))
+                for c in range(1, 4):
+                    lab = tk.Label(f_tab, text="", font=("Consolas", 11, "bold"),
+                                   fg=DIM, bg=PANEL, anchor="e", width=8)
+                    lab.grid(row=grid_row, column=c, padx=8, sticky="e")
+                    self.cells[(mi, state, c)] = lab
+                grid_row += 1
+        tk.Label(f_tab, text=S["tab_note"], font=("Segoe UI", 9), fg=MUT, bg=PANEL,
+                 justify="right", wraplength=520).grid(
+            row=grid_row, column=0, columnspan=4, sticky="e", padx=12,
+            pady=(4, 8))
 
         # שורת עדכון + מעבר שפה
         f_upd = tk.Frame(r, bg=BG)
@@ -646,15 +668,7 @@ class App:
         self._set("s_s", self.st_sub, sub)
         if self._shown_peak is None:
             self._shown_peak = peak
-            pal = self._pal(peak)
-            for w in (self.card, self.st_title, self.st_sub, self.st_next):
-                w.configure(bg=pal["card_bg"])
-            self.card.configure(highlightbackground=pal["hl"])
-            for it in getattr(self, "_ring_items", []):
-                self.clock_cv.itemconfigure(it, outline=pal["hl"])
-            self.st_title.configure(fg=pal["tfg"])
-            for lab in self.cells.values():
-                lab.configure(fg=pal["cbg"])
+            self._apply_state_colors(peak)
         elif peak != self._shown_peak:
             self._shown_peak = peak
             self._start_state_transition()
@@ -688,14 +702,14 @@ class App:
             dsc.configure(text=S["ev_rise"] if rising else S["ev_fall"],
                           fg=AMBER if rising else GREEN)
 
-        for row_i, (api, data) in enumerate(list(PRICES.items()), start=2):
-            cur = data["peak"] if peak else data["off"]
-            for c, v in enumerate(cur, start=1):
-                key = (row_i, c)
-                txt = f"${v:.3f}"
-                if self._celltext.get(key) != txt:
-                    self._celltext[key] = txt
-                    self.cells[key].configure(text=txt)
+        for mi, (api, data) in enumerate(list(PRICES.items())):
+            for state, vals in ((False, data["off"]), (True, data["peak"])):
+                for c, v in enumerate(vals, start=1):
+                    key = (mi, state, c)
+                    txt = f"${v:.3f}"
+                    if self._celltext.get(key) != txt:
+                        self._celltext[key] = txt
+                        self.cells[key].configure(text=txt)
 
         windows_txt = " & ".join(f"{s:02d}:00-{e:02d}:00" for s, e in PEAK_WINDOWS)
         if self.lang == "he":
@@ -703,11 +717,31 @@ class App:
         self._set("note", self.note_lbl, S["note"].format(w=windows_txt))
         self._set("upd", self.upd_lbl, self.status[0], fg=self.status[1])
 
-    def _pal(self, peak):
-        return {"card_bg": CARD_ON if peak else CARD_OFF,
-                "hl": AMBER if peak else GREEN,
-                "tfg": AMBER if peak else GREEN,
-                "cbg": WHITE if peak else GREEN}
+    def _state_color(self, state):
+        return AMBER if state else GREEN
+
+    def _table_targets(self, peak):
+        """מיפוי כל תווית בטבלה לצבע היעד שלה במצב הנתון."""
+        out = {}
+        for key, lab in self.cells.items():
+            state = key[1]
+            out[lab] = self._state_color(state) if state == peak else DIM
+        for lab, state in self.state_rows:
+            out[lab] = self._state_color(state) if state == peak else DIM_LBL
+        return out
+
+    def _apply_state_colors(self, peak):
+        """החלה מיידית (ללא אנימציה) של צבעי המצב בכל הממשק."""
+        card_bg = CARD_ON if peak else CARD_OFF
+        hl = self._state_color(peak)
+        for w in (self.card, self.st_title, self.st_sub, self.st_next):
+            w.configure(bg=card_bg)
+        self.card.configure(highlightbackground=hl)
+        self.st_title.configure(fg=hl)
+        for it in getattr(self, "_ring_items", []):
+            self.clock_cv.itemconfigure(it, outline=hl)
+        for lab, col in self._table_targets(peak).items():
+            lab.configure(fg=col)
 
     def _init_analog_items(self):
         """פני שעון (מעובדים) + מסגרת דקה ניטרלית + מחוגים חלקים.
@@ -775,29 +809,39 @@ class App:
             self._anim_running = False
 
     def _start_state_transition(self):
-        """מעבר צבע חלק בין מצב שפל למצב שיא (ולהיפך)."""
+        """מעבר צבע חלק של כל האלמנטים התלויים במצב המחיר."""
+        peak = self._shown_peak
+        card_bg = CARD_ON if peak else CARD_OFF
+        hl = self._state_color(peak)
+        widgets = [(w, "bg", w.cget("bg"), card_bg)
+                   for w in (self.card, self.st_title, self.st_sub, self.st_next)]
+        widgets.append((self.card, "highlightbackground",
+                        self.card.cget("highlightbackground"), hl))
+        widgets.append((self.st_title, "fg", self.st_title.cget("fg"), hl))
+        labels = [(lab, lab.cget("fg"), col)
+                  for lab, col in self._table_targets(peak).items()]
+        rings = [(it, self.clock_cv.itemcget(it, "outline"), hl)
+                 for it in getattr(self, "_ring_items", [])]
         self._tr = {"t0": time.monotonic(), "dur": 0.6,
-                    "src": self._pal(not self._shown_peak),
-                    "tgt": self._pal(self._shown_peak)}
+                    "widgets": widgets, "labels": labels, "rings": rings}
         self._ensure_anim(True)
 
     def _step_transition(self):
         t = min(1.0, (time.monotonic() - self._tr["t0"]) / self._tr["dur"])
         e = 1 - (1 - t) ** 3  # ease-out
-        src, tgt = self._tr["src"], self._tr["tgt"]
-        bg = _lerp_hex(src["card_bg"], tgt["card_bg"], e)
-        hl = _lerp_hex(src["hl"], tgt["hl"], e)
-        tf = _lerp_hex(src["tfg"], tgt["tfg"], e)
-        cf = _lerp_hex(src["cbg"], tgt["cbg"], e)
-        for w in (self.card, self.st_title, self.st_sub, self.st_next):
-            w.configure(bg=bg)
-        self.card.configure(highlightbackground=hl)
-        for it in getattr(self, "_ring_items", []):
-            self.clock_cv.itemconfigure(it, outline=hl)
-        self.st_title.configure(fg=tf)
-        for lab in self.cells.values():
-            lab.configure(fg=cf)
+        for w, attr, a, b in self._tr["widgets"]:
+            w.configure(**{attr: _lerp_hex(a, b, e)})
+        for it, a, b in self._tr["rings"]:
+            self.clock_cv.itemconfigure(it, outline=_lerp_hex(a, b, e))
+        for w, a, b in self._tr["labels"]:
+            w.configure(fg=_lerp_hex(a, b, e))
         if t >= 1:
+            for w, attr, _a, b in self._tr["widgets"]:
+                w.configure(**{attr: b})
+            for it, _a, b in self._tr["rings"]:
+                self.clock_cv.itemconfigure(it, outline=b)
+            for w, _a, b in self._tr["labels"]:
+                w.configure(fg=b)
             self._tr = None
 
     def _tick(self):
